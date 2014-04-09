@@ -30,6 +30,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.StringReader;
+import java.lang.annotation.Annotation;
+import java.lang.annotation.AnnotationFormatError;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -67,7 +69,7 @@ public final class JsonRpcInvoker {
 			throw new IllegalArgumentException();
 		}
 		typeChecker.isValidInterface(clazz);
-		
+
 		return clazz.cast(Proxy.newProxyInstance(JsonRpcInvoker.class.getClassLoader(), new Class<?>[] { clazz }, new InvocationHandler() {
 			public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 				return JsonRpcInvoker.this.invoke(handle, transport, method, args);
@@ -83,13 +85,18 @@ public final class JsonRpcInvoker {
 		req.addProperty("id", id);
 		req.addProperty("method", methodName);
 
-		JsonArray params = new JsonArray();
-		if (args != null) {
-			for (Object o : args) {
-				params.add(gson.toJsonTree(o));
+		JsonObject parameterObject = processParameterNameAnnotations(method, args);
+		if (parameterObject == null) {
+			JsonArray params = new JsonArray();
+			if (args != null) {
+				for (Object o : args) {
+					params.add(gson.toJsonTree(o));
+				}
 			}
+			req.add("params", params);
+		} else {
+			req.add("params", parameterObject);
 		}
-		req.add("params", params);
 
 		String requestData = req.toString();
 		LOG.debug("JSON-RPC >>  {}", requestData);
@@ -127,5 +134,28 @@ public final class JsonRpcInvoker {
 		}
 
 		return gson.fromJson(result.toString(), method.getReturnType());
+	}
+
+	private JsonObject processParameterNameAnnotations(Method method, Object[] args) {
+		JsonObject parameterObject = new JsonObject();
+		Annotation[][] parameterAnnotations = method.getParameterAnnotations();
+		for (int currentArgIndex = 0; currentArgIndex < parameterAnnotations.length; ++currentArgIndex) {
+			Annotation[] parameterAnnotation = parameterAnnotations[currentArgIndex];
+			for (Annotation annotation : parameterAnnotation) {
+				if (annotation instanceof JsonRpcParam) {
+					parameterObject.add(((JsonRpcParam) annotation).name(), gson.toJsonTree(args[currentArgIndex]));
+				}
+			}
+		}
+		if (parameterObject.entrySet().size() > 0) {
+			if (parameterObject.entrySet().size() != args.length) {
+				throw new AnnotationFormatError("Annotations are used on some but not all method parameters, "
+						+ "the request object sent to the server will not contain unannotated parameters which "
+						+ "is undesirable for generated proxy object. Violating method is " + method);
+			}
+			return parameterObject;
+		} else {
+			return null; // TODO Guava - optional
+		}
 	}
 }
