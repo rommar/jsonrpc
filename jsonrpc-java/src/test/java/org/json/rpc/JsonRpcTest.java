@@ -64,7 +64,7 @@ public class JsonRpcTest {
     }
 
 
-    private <T> T getInstance(String handleName, Class<T>... classes) {
+    private <T> T getInstance(String handleName, Class<T> clazz) {
         return invoker.get(new JsonRpcClientTransport() {
             public String call(final String requestData) throws Exception {
                 final StringBuilder resultData = new StringBuilder();
@@ -81,7 +81,7 @@ public class JsonRpcTest {
                 executor.execute(serverTransport);
                 return resultData.toString();
             }
-        }, handleName, classes);
+        }, handleName, clazz);
     }
 
     //@Test
