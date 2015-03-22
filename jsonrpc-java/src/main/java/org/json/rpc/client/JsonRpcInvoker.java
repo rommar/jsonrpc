@@ -82,8 +82,10 @@ public final class JsonRpcInvoker {
 		String methodName = handleName + "." + method.getName();
 
 		JsonObject req = new JsonObject();
+		req.addProperty("jsonrpc", "2.0");
 		req.addProperty("id", id);
 		req.addProperty("method", methodName);
+		
 
 		JsonObject parameterObject = processParameterNameAnnotations(method, args);
 		if (parameterObject == null) {
@@ -93,7 +95,8 @@ public final class JsonRpcInvoker {
 					params.add(gson.toJsonTree(o));
 				}
 			}
-			req.add("params", params);
+	        if (params.size() > 0)
+	        	req.add("params", params);
 		} else {
 			req.add("params", parameterObject);
 		}
